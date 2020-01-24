@@ -16,7 +16,6 @@ classdef GOUIncrementCufaroSabinoRejection < GOUIncrementMethod
             shape = lambdaPoisson / kappaOU;
             a = exp(-kappaOU * timeStep);
             increment = GOUIncrementCufaroSabinoRejection.randAdditionalSD(a, shape, lambdaExponential, numberOfSimulations, obj.numberOfCoefficients);
-%             increment = GOUIncrementCufaroSabinoRejection.randAdditionalSDFast(a, shape, numberOfSimulations, obj.numberOfCoefficients) / lambdaExponential;
         end
     end
     
@@ -32,7 +31,7 @@ classdef GOUIncrementCufaroSabinoRejection < GOUIncrementMethod
     end
     
     methods (Static)
-        
+               
         %' randAdditionalSD
         %'
         %' Simulates the "additional" random variable entering the self-decomposiability of the gamma law
@@ -44,19 +43,22 @@ classdef GOUIncrementCufaroSabinoRejection < GOUIncrementMethod
         %'
         %' return vector of simulated random variables
         
-        function returnVector = randAdditionalSDFast(a, shape, lambdaExponential, numberOfSimulations, numberOfCoefficients)
+        function returnVector = randAdditionalSD(a, shape, lambdaExponential, numberOfSimulations, numberOfCoefficients)
             
             returnVector = zeros(numberOfSimulations, 1);
             conditionalErlang = GOUIncrementCufaroSabinoRejection.randSDPositiveMixture(a, shape, numberOfCoefficients, numberOfSimulations);
             acceptIndicesZeros = (conditionalErlang == 0);
             returnVector(acceptIndicesZeros) = 0;
             
+            if all(acceptIndicesZeros)
+                return
+            end
             numberAcceptanceRejectionSimulations    = sum(~acceptIndicesZeros);
             numberOfSimulationPerLoop               = numberAcceptanceRejectionSimulations;
             
             accept                      = false;
-            acceptIndices               = false(numberOfSimulations, 1) | acceptIndicesZeros;
-            newAcceptRejectionIndices   = false(numberOfSimulations, 1) | acceptIndicesZeros;
+            acceptIndices               = acceptIndicesZeros;
+            newAcceptRejectionIndices   = acceptIndicesZeros;
             
             conditionalErlangNonZero = conditionalErlang(~acceptIndices);
             
@@ -66,23 +68,33 @@ classdef GOUIncrementCufaroSabinoRejection < GOUIncrementMethod
                 ratio                       = 1 - ...
                     GOUIncrementCufaroSabinoRejection.SDNegativeMixture(conditionalErlangNonZero, a, shape, numberOfCoefficients) ./ ...
                     GOUIncrementCufaroSabinoRejection.SDPositiveMixture(conditionalErlangNonZero, a, shape, numberOfCoefficients);
-                
+
+                % If conditionalErlangNonZero is zero the ratio is nan but
+                % then is acceptable. This condition may be
+                % verified within the while if accept is not verified at
+                % the first step
+                ratio(isnan(ratio)) = 1; 
                 acceptRejectionIndices = (uniformRV <= ratio);
-                newAcceptRejectionIndices(acceptIndices == false) = acceptRejectionIndices;
-                returnVector(newAcceptRejectionIndices(acceptIndices == false)) = conditionalErlangNonZero(acceptRejectionIndices);
+                isFalseAcceptIndices = ~acceptIndices; % equivalent to acceptIndices == false;
+                newAcceptRejectionIndices(isFalseAcceptIndices) = acceptRejectionIndices;
+                                
+                idxReturnVector = newAcceptRejectionIndices & (~acceptIndices); % equivalent to newAcceptRejectionIndices & (acceptIndices == false)
+                returnVector(idxReturnVector) = conditionalErlangNonZero(acceptRejectionIndices) / lambdaExponential;
                 
-                acceptIndices               = acceptIndices | newAcceptRejectionIndices;
+                % Update new indices for accept
+                acceptIndices               = acceptIndices | newAcceptRejectionIndices;                                
+                
                 totalNumberOfAccepted       = sum(acceptIndices);
                 numberOfSimulationPerLoop   = numberOfSimulations - totalNumberOfAccepted;
                 
-                accept                      = (totalNumberOfAccepted >= numberOfSimulations);
+                accept                      = (totalNumberOfAccepted >= numberOfSimulations);                
                 newAcceptRejectionIndices   = false(numberOfSimulations, 1);
                 conditionalErlangNonZero    = GOUIncrementCufaroSabinoRejection.randSDPositiveMixture(a, shape, numberOfCoefficients, numberOfSimulationPerLoop);
                 %     conditionalErlangNonZero    = conditionalErlang(conditionalErlang > 0);
             end
         end
         
-        %' randAdditionalSD
+        %' randAdditionalSDSlow
         %'
         %' Simulates the "additional" random variable entering the self-decomposiability of the gamma law
         %'
@@ -93,7 +105,7 @@ classdef GOUIncrementCufaroSabinoRejection < GOUIncrementMethod
         %'
         %' return vector of simulated random variables
         
-        function returnVector = randAdditionalSD (a, shape, lambdaExponential, numSimulations, numCoefficients)
+        function returnVector = randAdditionalSDSlow(a, shape, lambdaExponential, numSimulations, numCoefficients)
             returnVector = zeros(numSimulations, 1);
             
             for i = 1:numSimulations

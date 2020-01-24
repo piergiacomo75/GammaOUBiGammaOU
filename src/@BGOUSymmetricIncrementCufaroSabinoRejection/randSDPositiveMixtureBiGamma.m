@@ -9,7 +9,7 @@
 %'
 %' return vector of simulated random variables
 
-function conditionalBiGamma = randSDPositiveMixtureBiGamma(a, shape, numSimulations, numCoefficients)
+function conditionalBiGamma = randSDPositiveMixtureBiGamma(a, shape, numCoefficients, numSimulations)
 
 positiveMixtureCoefficients = GOUIncrementCufaroSabinoRejection.CalculatePositiveMixtureCoefficients(a^2, shape, numCoefficients);
 cdfDiscrete = cumsum(positiveMixtureCoefficients) / sum(positiveMixtureCoefficients);
